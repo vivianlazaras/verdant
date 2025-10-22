@@ -1,0 +1,17 @@
+[package]
+name = "protocol"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+env_logger = "0.11.8"
+opaque-ke = { version = "3.0.0", features = ["ristretto255"]}
+ormlite = "0.24.1"
+rand = "0.8"
+reqwest = "0.12.24"
+serde = "1.0.228"
+serde_derive = "1.0.228"
+serde_json = "1.0.145"
+sha2 = "0.10.9"
+tokio = "1.48.0"
+uuid = "1.18.1"
