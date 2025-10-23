@@ -1,12 +1,18 @@
-use opaque_ke::{ClientLogin, ClientLoginFinishParameters, ClientRegistrationFinishParameters, RegistrationUpload, ClientRegistration, RegistrationRequest, CredentialResponse, CredentialFinalization};
+use opaque_ke::{ClientLogin, CredentialRequest, ClientLoginFinishParameters, ClientRegistrationFinishParameters, RegistrationUpload, ClientRegistration, RegistrationRequest, CredentialResponse, CredentialFinalization};
 use opaque_ke::errors::ProtocolError;
 
+use serde_derive::{Serialize, Deserialize};
 use crate::auth::DefaultCipherSuite;
 
 use rand::rngs::OsRng;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LoginRequest {
+    pub username: String,
+    pub request: CredentialRequest<DefaultCipherSuite>,
+}
+
 pub struct Client {
-    
     password: String,
 }
 

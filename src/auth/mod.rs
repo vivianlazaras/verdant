@@ -1,5 +1,8 @@
 pub mod registration;
 
+use serde_derive::{Serialize, Deserialize};
+use opaque_ke::{CredentialRequest, CredentialResponse};
+
 pub struct DefaultCipherSuite;
 
 use opaque_ke::CipherSuite;
@@ -9,6 +12,15 @@ impl CipherSuite for DefaultCipherSuite {
     type KeGroup = opaque_ke::Ristretto255;
     type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
     type Ksf = opaque_ke::ksf::Identity;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum LoginResult {
+    /// Login Successful Access Token Within.
+    Success(String),
+    /// Password reset required, prompt user, or generate appropriately
+    PasswordReset,
+    Unauthorized,
 }
 
 #[cfg(test)]

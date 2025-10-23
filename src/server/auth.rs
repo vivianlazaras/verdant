@@ -3,6 +3,8 @@ use opaque_ke::{
     ServerRegistrationStartResult
 };
 
+use serde_derive::{Serialize, Deserialize};
+
 use opaque_ke::errors::ProtocolError;
 use opaque_ke::ServerLoginStartParameters;
 
@@ -10,9 +12,10 @@ use crate::auth::DefaultCipherSuite;
 
 use rand::rngs::OsRng;
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct StoredUserRecord {
-    pub registration: ServerRegistration<DefaultCipherSuite>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum LoginResponse {
+    OTP,
+    PAKE(CredentialResponse<DefaultCipherSuite>),
 }
 
 pub struct Server {
