@@ -1,6 +1,5 @@
 use opaque_ke::{
-    RegistrationResponse, RegistrationRequest, RegistrationUpload, ServerRegistration, ServerSetup, ServerLogin, CredentialResponse, CredentialFinalization,
-    ServerRegistrationStartResult
+    RegistrationResponse, RegistrationRequest, RegistrationUpload, ServerRegistration, ServerSetup, ServerLogin, CredentialResponse, CredentialFinalization
 };
 
 use serde_derive::{Serialize, Deserialize};

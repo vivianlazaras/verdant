@@ -1,7 +1,6 @@
 pub mod registration;
 
 use serde_derive::{Serialize, Deserialize};
-use opaque_ke::{CredentialRequest, CredentialResponse};
 
 pub struct DefaultCipherSuite;
 

@@ -1,8 +1,7 @@
 use crate::client::auth as client_auth;
-use crate::server::auth as server_auth;
+
 use reqwest;
 use serde_json::Value;
-use std::error::Error;
 use crate::auth::LoginResult;
 use crate::server::auth::LoginResponse;
 
@@ -159,7 +158,7 @@ impl APIClient {
         let jwt_str = String::from_utf8(plaintext)?;
 
         let validation = jsonwebtoken::Validation::default();
-        let token_data = jsonwebtoken::decode::<Value>(&jwt_str, decoder, &validation)?;
+        jsonwebtoken::decode::<Value>(&jwt_str, decoder, &validation)?;
 
         Ok(jwt_str)
     }
