@@ -1139,6 +1139,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "if-addrs"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf39cc0423ee66021dc5eccface85580e4a001e0c5288bae8bea7ecb69225e90"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "ignore"
 version = "0.4.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1349,6 +1359,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdns-sd"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2356244283ebac826b2310dc21f28306f8ed8dde51367cdd4338c23c3c0364ca"
+dependencies = [
+ "fastrand",
+ "flume",
+ "if-addrs",
+ "log",
+ "mio",
+ "socket-pktinfo",
+ "socket2",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1373,6 +1398,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69d83b0086dc8ecf3ce9ae2874b2d1290252e2a30720bea58a5c6639b0092873"
 dependencies = [
  "libc",
+ "log",
  "wasi",
  "windows-sys 0.61.2",
 ]
@@ -1808,9 +1834,11 @@ name = "protocol"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "anyhow",
  "base64",
  "env_logger",
  "jsonwebtoken",
+ "mdns-sd",
  "opaque-ke",
  "ormlite",
  "rand",
@@ -2244,6 +2272,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "socket-pktinfo"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "927136cc2ae6a1b0e66ac6b1210902b75c3f726db004a73bc18686dcd0dcd22f"
+dependencies = [
+ "libc",
+ "socket2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
