@@ -1,8 +1,12 @@
-use opaque_ke::{ClientLogin, CredentialRequest, ClientLoginFinishParameters, ClientRegistrationFinishParameters, RegistrationUpload, ClientRegistration, RegistrationRequest, CredentialResponse, CredentialFinalization};
 use opaque_ke::errors::ProtocolError;
+use opaque_ke::{
+    ClientLogin, ClientLoginFinishParameters, ClientRegistration,
+    ClientRegistrationFinishParameters, CredentialFinalization, CredentialRequest,
+    CredentialResponse, RegistrationRequest, RegistrationUpload,
+};
 
-use serde_derive::{Serialize, Deserialize};
 use crate::auth::DefaultCipherSuite;
+use serde_derive::{Deserialize, Serialize};
 
 use rand::rngs::OsRng;
 
@@ -18,11 +22,21 @@ pub struct Client {
 
 impl Client {
     pub fn new(password: impl Into<String>) -> Self {
-        Self { password: password.into() }
+        Self {
+            password: password.into(),
+        }
     }
 
     // Step 1: Registration start
-    pub fn start_registration(&self) -> Result<(ClientRegistration<DefaultCipherSuite>, RegistrationRequest<DefaultCipherSuite>), ProtocolError> {
+    pub fn start_registration(
+        &self,
+    ) -> Result<
+        (
+            ClientRegistration<DefaultCipherSuite>,
+            RegistrationRequest<DefaultCipherSuite>,
+        ),
+        ProtocolError,
+    > {
         let mut rng = OsRng;
         let start = ClientRegistration::start(&mut rng, self.password.as_bytes())?;
         Ok((start.state, start.message))
@@ -35,12 +49,25 @@ impl Client {
         response: opaque_ke::RegistrationResponse<DefaultCipherSuite>,
     ) -> Result<RegistrationUpload<DefaultCipherSuite>, ProtocolError> {
         let mut rng = OsRng;
-        let result = registration.finish(&mut rng, self.password.as_bytes(), response, ClientRegistrationFinishParameters::default())?;
+        let result = registration.finish(
+            &mut rng,
+            self.password.as_bytes(),
+            response,
+            ClientRegistrationFinishParameters::default(),
+        )?;
         Ok(result.message)
     }
 
     // Step 3: Start login (authentication)
-    pub fn start_login(&self) -> Result<(ClientLogin<DefaultCipherSuite>, opaque_ke::CredentialRequest<DefaultCipherSuite>), ProtocolError> {
+    pub fn start_login(
+        &self,
+    ) -> Result<
+        (
+            ClientLogin<DefaultCipherSuite>,
+            opaque_ke::CredentialRequest<DefaultCipherSuite>,
+        ),
+        ProtocolError,
+    > {
         let mut rng = OsRng;
         let result = ClientLogin::<DefaultCipherSuite>::start(&mut rng, self.password.as_bytes())?;
         Ok((result.state, result.message))
@@ -52,7 +79,11 @@ impl Client {
         client_login: ClientLogin<DefaultCipherSuite>,
         credential_response: CredentialResponse<DefaultCipherSuite>,
     ) -> Result<(Vec<u8>, CredentialFinalization<DefaultCipherSuite>), ProtocolError> {
-        let result = client_login.finish(self.password.as_bytes(), credential_response, ClientLoginFinishParameters::default())?;
+        let result = client_login.finish(
+            self.password.as_bytes(),
+            credential_response,
+            ClientLoginFinishParameters::default(),
+        )?;
         Ok((result.session_key.as_slice().to_vec(), result.message))
     }
 }

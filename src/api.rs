@@ -1,24 +1,103 @@
 use crate::client::auth as client_auth;
 
-use reqwest;
-use serde_json::Value;
 use crate::auth::LoginResult;
 use crate::server::auth::LoginResponse;
+use reqwest;
+use serde_json::Value;
 
+use aes_gcm::{
+    Aes256Gcm,
+    aead::{Aead, KeyInit, generic_array::GenericArray},
+};
 use jsonwebtoken::DecodingKey;
-use aes_gcm::{Aes256Gcm, aead::{Aead, KeyInit, generic_array::GenericArray}};
+use crate::errors::Error;
+use sha2::Sha256;
+use reqwest::Client;
+
+use der::{Decode, Sequence};
+use der::asn1::ObjectIdentifier;
+use keycast::discovery::Discovery;
+use sha2::Digest;
+
 /// Simple API client for auth-related endpoints.
 pub struct APIClient {
     pub url: String,
     pub decoder: DecodingKey,
 }
 
+pub enum KeyType {
+    Rsa,
+    Ec,
+    Ed25519,
+    Unknown(String),
+    Ed448,
+}
+
+fn detect_key_type(der: &[u8]) -> Result<KeyType, Error> {
+    let id: spki::AlgorithmIdentifier<()> = spki::AlgorithmIdentifier::from_der(der)?;
+    Ok(match id.oid.to_string().as_str() {
+        // RSA (rsaEncryption)
+        "1.2.840.113549.1.1.1" => KeyType::Rsa,
+
+        // Ed25519 / Ed448
+        "1.3.101.112" => KeyType::Ed25519,
+        "1.3.101.113" => KeyType::Ed448,
+
+        // EC public keys (secp256r1, secp384r1, secp521r1, etc.)
+        "1.2.840.10045.2.1" => KeyType::Ec, // generic ecPublicKey
+
+        // Fallback
+        _ => KeyType::Unknown(id.oid.to_string()),
+    })
+}
+
 impl APIClient {
+    pub async fn from_discovery(mut discovery: Discovery) -> Result<Self, crate::errors::Error> {
+        // steps: create request client to grab the decoding key
+        // verify the hash of the decoding key matches the public key hash in the discovery.
+        let ipaddr = match discovery.addrs.pop() {
+            Some(addr) => addr,
+            None => return Err(Error::MissingIpAddr),
+        };
+        let url = format!("{}:{}", ipaddr, discovery.port);
+        let client = Client::new();
+
+        let resp = client
+            .get(&url)
+            .send().await?
+            .bytes().await?;
+
+        // Compute hash of the key
+        let mut hasher = Sha256::new();
+        hasher.update(&resp);
+        let result = hasher.finalize();
+        let key_hash_base64 = base64::encode(result);
+
+        // Compare with expected hash
+        if key_hash_base64 != discovery.pubkey_hash.hash {
+            return Err(Error::KeyHashMismatch(key_hash_base64, discovery.pubkey_hash.hash));
+        }
+
+        let key = match detect_key_type(&resp)? {
+            KeyType::Rsa => DecodingKey::from_rsa_der(&resp),
+            KeyType::Ec => DecodingKey::from_ec_der(&resp),
+            KeyType::Ed25519 => DecodingKey::from_ed_der(&resp),
+            KeyType::Unknown(u) => return Err(Error::UnknownKeyType(u)),
+            KeyType::Ed448 => return Err(Error::UnknownKeyType("Ed448".to_string()))
+        };
+
+        Ok(Self {
+            url,
+            decoder: key,
+        })
+    }
     /// Create a new API client pointing at `url`.
     pub fn new(url: impl Into<String>, decoder: DecodingKey) -> Self {
-        Self { url: url.into(), decoder }
+        Self {
+            url: url.into(),
+            decoder,
+        }
     }
-
 
     /// Send a login request using a username and password.
     ///
@@ -86,13 +165,12 @@ impl APIClient {
         //
         // Adjust the field names below to match your actual LoginResponse shape.
         match initial_resp {
-            LoginResponse::OTP => {
-                Ok(LoginResult::PasswordReset)
-            },
+            LoginResponse::OTP => Ok(LoginResult::PasswordReset),
             LoginResponse::PAKE(cred_response) => {
                 match opaque_client.finish_login(client_login, cred_response) {
                     Ok((key, finalize)) => {
-                        let finalize_endpoint = format!("{}/login/finalize", self.url.trim_end_matches('/'));
+                        let finalize_endpoint =
+                            format!("{}/login/finalize", self.url.trim_end_matches('/'));
 
                         let final_resp = client
                             .post(&finalize_endpoint)
@@ -104,22 +182,16 @@ impl APIClient {
                             .await?;
 
                         match final_resp {
-                            LoginResult::Success(token) => {
-                                Ok(LoginResult::Success(Self::validate_token(&token, &self.decoder, &key)?))
-                            },
-                            _ => {
-                                Ok(final_resp)
-                            },
+                            LoginResult::Success(token) => Ok(LoginResult::Success(
+                                Self::validate_token(&token, &self.decoder, &key)?,
+                            )),
+                            _ => Ok(final_resp),
                         }
-                    },
-                    Err(e) => {
-                        Err(crate::errors::Error::Opaque(e))
-                    },
+                    }
+                    Err(e) => Err(crate::errors::Error::Opaque(e)),
                 }
-            },
+            }
         }
-
-        
     }
 
     pub fn validate_token(
@@ -152,8 +224,7 @@ impl APIClient {
         let (nonce_bytes, ciphertext) = raw.split_at(12);
         let nonce = GenericArray::from_slice(nonce_bytes);
 
-        let plaintext = cipher
-            .decrypt(nonce, ciphertext.as_ref())?;
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())?;
 
         let jwt_str = String::from_utf8(plaintext)?;
 

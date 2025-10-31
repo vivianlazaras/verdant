@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::string::FromUtf8Error;
+use thiserror::Error;
 /// Common result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -20,7 +20,7 @@ pub enum Error {
 
     #[error("JSONWebToken error: {0}")]
     JSONWebToken(#[from] jsonwebtoken::errors::Error),
-    
+
     #[error("FromUtf8Error: {0}")]
     FromUtf8Error(#[from] FromUtf8Error),
 
@@ -32,6 +32,17 @@ pub enum Error {
 
     #[error("aes_gcm error: {0}")]
     AesGcmError(#[from] aes_gcm::Error),
+
+    #[error("couldn't get IP Address")]
+    MissingIpAddr,
+    #[error("hash mismatch: {0} {1}")]
+    KeyHashMismatch(String, String),
+    #[error("unknown key type: {0}")]
+    UnknownKeyType(String),
+    #[error("SubjectPublicKeyInfo error: {0}")]
+    SPKI(#[from] spki::Error),
+    #[error("der Error: {0}")]
+    DerError(#[from] der::Error),
 }
 
 impl From<&str> for Error {

@@ -1,6 +1,6 @@
 pub mod registration;
 
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 pub struct DefaultCipherSuite;
 
@@ -51,7 +51,10 @@ mod tests {
         let stored = server.finish_registration(upload);
 
         // Verify server stores a valid record
-        assert!(!stored.serialize().is_empty(), "server stored empty registration record");
+        assert!(
+            !stored.serialize().is_empty(),
+            "server stored empty registration record"
+        );
 
         Ok(())
     }
@@ -72,7 +75,8 @@ mod tests {
         let (client_login, credential_request) = client.start_login()?;
         let (server_login, credential_response) =
             server.start_login(stored.clone(), credential_request, "bob")?;
-        let (client_key, client_finalization) = client.finish_login(client_login, credential_response)?;
+        let (client_key, client_finalization) =
+            client.finish_login(client_login, credential_response)?;
         let server_key = server.finish_login(server_login, client_finalization)?;
 
         // === Verify both session keys match ===
@@ -179,7 +183,10 @@ mod tests {
         let srv_key2 = server.finish_login(srv2, fin2)?;
 
         // Each session must produce a distinct shared key
-        assert_ne!(key1, key2, "Each login should produce a new unique session key");
+        assert_ne!(
+            key1, key2,
+            "Each login should produce a new unique session key"
+        );
         assert_eq!(key1, srv_key1);
         assert_eq!(key2, srv_key2);
 
