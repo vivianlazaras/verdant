@@ -13,7 +13,17 @@ use rand::rngs::OsRng;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LoginRequest {
     pub username: String,
-    pub request: CredentialRequest<DefaultCipherSuite>,
+    pub credentials: String,
+}
+
+impl LoginRequest {
+    pub fn new(username: impl Into<String>, credentials: CredentialRequest<DefaultCipherSuite>) -> Self {
+        let credentials = base64::encode(credentials.serialize().as_slice().to_vec());
+        Self {
+            username: username.into(),
+            credentials,
+        }
+    }
 }
 
 pub struct Client {

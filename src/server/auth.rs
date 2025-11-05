@@ -1,7 +1,14 @@
 use opaque_ke::{
-    CredentialFinalization, CredentialResponse, RegistrationRequest, RegistrationResponse,
-    RegistrationUpload, ServerLogin, ServerRegistration, ServerSetup,
+    RegistrationRequest, RegistrationResponse,
+    RegistrationUpload
 };
+
+pub type ServerSetup = opaque_ke::ServerSetup<DefaultCipherSuite>;
+pub type ServerLogin = opaque_ke::ServerLogin<DefaultCipherSuite>;
+pub type CredentialRequest = opaque_ke::CredentialRequest<DefaultCipherSuite>;
+pub type CredentialResponse = opaque_ke::CredentialResponse<DefaultCipherSuite>;
+pub type ServerRegistration = opaque_ke::ServerRegistration<DefaultCipherSuite>;
+pub type CredentialFinalization = opaque_ke::CredentialFinalization<DefaultCipherSuite>;
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -14,12 +21,13 @@ use rand::rngs::OsRng;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum LoginResponse {
-    OTP,
-    PAKE(CredentialResponse<DefaultCipherSuite>),
+    OTP(String),
+    PAKE(CredentialResponse),
+    AccessDenied,
 }
 
 pub struct Server {
-    setup: ServerSetup<DefaultCipherSuite>,
+    setup: ServerSetup,
     // e.g. a database of username -> StoredUserRecord
 }
 
@@ -46,20 +54,20 @@ impl Server {
     pub fn finish_registration(
         &mut self,
         upload: RegistrationUpload<DefaultCipherSuite>,
-    ) -> ServerRegistration<DefaultCipherSuite> {
+    ) -> ServerRegistration  {
         ServerRegistration::finish(upload)
     }
 
     // Step 3: Handle login start
     pub fn start_login(
         &self,
-        registration: ServerRegistration<DefaultCipherSuite>,
-        credential_request: opaque_ke::CredentialRequest<DefaultCipherSuite>,
+        registration: ServerRegistration,
+        credential_request: CredentialRequest,
         username: &str,
     ) -> Result<
         (
-            ServerLogin<DefaultCipherSuite>,
-            CredentialResponse<DefaultCipherSuite>,
+            ServerLogin,
+            CredentialResponse,
         ),
         ProtocolError,
     > {
@@ -78,8 +86,8 @@ impl Server {
     // Step 4: Finish login
     pub fn finish_login(
         &self,
-        server_login: ServerLogin<DefaultCipherSuite>,
-        client_finalization: CredentialFinalization<DefaultCipherSuite>,
+        server_login: ServerLogin ,
+        client_finalization: CredentialFinalization ,
     ) -> Result<Vec<u8>, ProtocolError> {
         // now both sides share a session key!
         let result = server_login.finish(client_finalization)?;

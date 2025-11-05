@@ -12,20 +12,24 @@
         pkgs = import nixpkgs {
           inherit system;
           config.allowUnfree = true;
+          config.android_sdk.accept_license = true;
         };
 
-        rust = pkgs.rustup.default;
+        ndkVersion = "27.0.12077973";
+
+        rust = pkgs.rustup;
 
         # Android SDK + NDK setup
         androidEnv = pkgs.androidenv.composeAndroidPackages {
           cmdLineToolsVersion = "12.0";
-          platformToolsVersion = "34.0.4";
+          platformToolsVersion = "34.0.5";
           buildToolsVersions = [ "34.0.0" ];
           platformVersions = [ "34" ];
-          ndkVersion = "27.0.12077973";
+          ndkVersion = ndkVersion;
+          includeNDK = true;
         };
 
-        ndk = androidEnv.ndk;
+        ndk = androidEnv.ndk-bundle;
         sdk = androidEnv.androidsdk;
 
       in {
@@ -42,12 +46,13 @@
 
           buildPhase = ''
             export NDK_HOME=${ndk}
-            export PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-
+            export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
+            export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+            
             # Setup environment for Android target
             export CC_aarch64_linux_android=aarch64-linux-android24-clang
             export CXX_aarch64_linux_android=aarch64-linux-android24-clang++
-            export AR_aarch64_linux_android=aarch64-linux-android-ar
+            export AR_aarch64_linux_android=llvm-ar
 
             rustup target add aarch64-linux-android
 
@@ -73,11 +78,12 @@
 
           shellHook = ''
             export NDK_HOME=${ndk}
-            export PATH=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-
+            export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
+            export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+            
             export CC_aarch64_linux_android=aarch64-linux-android24-clang
             export CXX_aarch64_linux_android=aarch64-linux-android24-clang++
-            export AR_aarch64_linux_android=aarch64-linux-android-ar
+            export AR_aarch64_linux_android=llvm-ar
 
             echo "✅ Android NDK ready for Rust cross-compilation"
             echo "You can now run: cargo build --target aarch64-linux-android --release"

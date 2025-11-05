@@ -20,6 +20,7 @@ pub enum LoginResult {
     /// Password reset required, prompt user, or generate appropriately
     PasswordReset,
     Unauthorized,
+    UnknownServer(String),
 }
 
 #[cfg(test)]

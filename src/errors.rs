@@ -2,6 +2,7 @@ use std::string::FromUtf8Error;
 use thiserror::Error;
 /// Common result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+pub type ProtocolError = opaque_ke::errors::ProtocolError;
 
 /// Error type that unifies opaque-ke protocol errors and reqwest HTTP errors.
 #[derive(Debug, Error)]
@@ -43,6 +44,8 @@ pub enum Error {
     SPKI(#[from] spki::Error),
     #[error("der Error: {0}")]
     DerError(#[from] der::Error),
+    #[error("json decoding error: {0}")]
+    JsonErr(#[from] serde_json::Error)
 }
 
 impl From<&str> for Error {
