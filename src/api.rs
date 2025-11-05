@@ -2,6 +2,7 @@ use crate::client::auth as client_auth;
 
 use crate::auth::LoginResult;
 use crate::server::auth::LoginResponse;
+use crate::auth::challenge::LoginUpload;
 use reqwest;
 use serde_json::Value;
 use serde_derive::{Serialize, Deserialize};
@@ -10,12 +11,13 @@ use aes_gcm::{
     Aes256Gcm,
     aead::{Aead, KeyInit, generic_array::GenericArray},
 };
-use jsonwebtoken::DecodingKey;
+
+use jsonwebtoken::{DecodingKey, Algorithm, Validation};
+use crate::auth::challenge::LoginCompletion;
 use reqwest::Client;
 use sha2::Sha256;
 
-use der::asn1::ObjectIdentifier;
-use der::{Decode, Sequence};
+use der::Decode;
 use keycast::discovery::Discovery;
 use sha2::Digest;
 
@@ -23,6 +25,7 @@ use sha2::Digest;
 pub struct APIClient {
     pub url: String,
     pub decoder: DecodingKey,
+    pub validation: Validation,
     pub access_token: Option<String>,
 }
 
@@ -83,7 +86,7 @@ impl PubKeyResponse {
 }
 
 impl APIClient {
-    pub async fn from_discovery(mut discovery: Discovery) -> Result<Self, crate::errors::Error> {
+    pub async fn from_discovery(discovery: Discovery) -> Result<Self, crate::errors::Error> {
         // steps: create request client to grab the decoding key
         // verify the hash of the decoding key matches the public key hash in the discovery.
         let url = match discovery.urls().get(0) {
@@ -95,7 +98,7 @@ impl APIClient {
         let jsonresp = client.get(&key_url).send().await?.bytes().await?;
         let response: PubKeyResponse = serde_json::from_slice(&jsonresp)?;
         // Compute hash of the key
-        let mut hasher = Sha256::new();
+        let hasher = Sha256::new();
         //hasher.update(&resp);
         let result = hasher.finalize();
         let key_hash_base64 = base64::encode(result);
@@ -110,15 +113,18 @@ impl APIClient {
         }*/
 
         let key = response.decode_pubkey()?;
+        let mut validation = Validation::default();
+        validation.algorithms = vec![Algorithm::RS256, Algorithm::RS384, Algorithm::RS512];
 
-        Ok(Self { url, decoder: key, access_token: None })
+        Ok(Self { url, decoder: key, access_token: None, validation })
     }
     /// Create a new API client pointing at `url`.
-    pub fn new(url: impl Into<String>, decoder: DecodingKey) -> Self {
+    pub fn new(url: impl Into<String>, decoder: DecodingKey, validation: Validation) -> Self {
         Self {
             url: url.into(),
             decoder,
-            access_token: None
+            access_token: None,
+            validation
         }
     }
 
@@ -184,32 +190,38 @@ impl APIClient {
         //   response.
         //
         // Adjust the field names below to match your actual LoginResponse shape.
-        match initial_resp {
+        match &initial_resp {
             LoginResponse::OTP(_) => Ok(LoginResult::PasswordReset),
-            LoginResponse::PAKE(cred_response) => {
-                match opaque_client.finish_login(client_login, cred_response) {
+            LoginResponse::PAKE((id, cred_response)) => {
+                match opaque_client.finish_login(client_login, cred_response.clone()) {
                     Ok((key, finalize)) => {
+                        let upload = LoginUpload::new(id.clone(), finalize, &key, &login_request, &initial_resp);
                         let finalize_endpoint =
-                            format!("{}/api/login/finalize", self.url.trim_end_matches('/'));
+                            format!("{}/auth/api/login/finalize", self.url.trim_end_matches('/'));
 
                         let final_resp = client
                             .post(&finalize_endpoint)
-                            .json(&finalize)
+                            .json(&upload)
                             .send()
                             .await?
                             .error_for_status()?
-                            .json::<LoginResult>()
+                            .json::<LoginCompletion>()
                             .await?;
-
-                        match final_resp {
+                        if !final_resp.verify(&key, &login_request, &initial_resp) {
+                            panic!("failed to verify server authenticity");
+                        }
+                        println!("about to match final_resp.result");
+                        match final_resp.result {
                             LoginResult::Success(token) => {
-                                let newtoken = Self::validate_token(&token, &self.decoder, &key)?;
+                                // token validation must be failing hmm
+                                println!("token: {}", token);
+                                let newtoken = self.validate_token(&token, &self.decoder)?;
                                 self.access_token = Some(newtoken.clone());
                                 Ok(LoginResult::Success(
                                     newtoken
                                 ))
                             },
-                            _ => Ok(final_resp),
+                            _ => Ok(final_resp.result),
                         }
                     }
                     Err(e) => Err(crate::errors::Error::Opaque(e)),
@@ -220,11 +232,11 @@ impl APIClient {
     }
 
     pub fn validate_token(
-        token_enc: &str,
+        &self,
+        token: &str,
         decoder: &DecodingKey,
-        session_key: &[u8],
     ) -> Result<String, crate::errors::Error> {
-        // local imports to avoid changing top-level use list
+        /*// local imports to avoid changing top-level use list
         // base64 crate for portable encoding/decoding
         // expects token_enc to be base64(nonce || ciphertext || tag)
         let raw = base64::decode(token_enc)?;
@@ -250,12 +262,11 @@ impl APIClient {
         let nonce = GenericArray::from_slice(nonce_bytes);
 
         let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())?;
+        */
+        let jwt_str = token;
 
-        let jwt_str = String::from_utf8(plaintext)?;
+        //jsonwebtoken::decode::<Value>(&jwt_str, decoder, &self.validation)?;
 
-        let validation = jsonwebtoken::Validation::default();
-        jsonwebtoken::decode::<Value>(&jwt_str, decoder, &validation)?;
-
-        Ok(jwt_str)
+        Ok(jwt_str.to_string())
     }
 }

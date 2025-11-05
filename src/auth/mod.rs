@@ -1,10 +1,14 @@
 pub mod registration;
-
+pub mod challenge;
+use crate::server::auth::Server;
+use crate::client::auth::Client;
+use crate::errors::ProtocolError;
 use serde_derive::{Deserialize, Serialize};
 
 pub struct DefaultCipherSuite;
 
 use opaque_ke::CipherSuite;
+use crate::server::auth::ServerSetup;
 
 impl CipherSuite for DefaultCipherSuite {
     type OprfCs = opaque_ke::Ristretto255;
@@ -23,11 +27,66 @@ pub enum LoginResult {
     UnknownServer(String),
 }
 
+/// takes in a username and password and produces a ServerRegistration
+pub fn register_user(server: &Server, username: impl Into<String>, password: impl Into<String>) -> Result<crate::server::auth::ServerRegistration, ProtocolError> {
+    let mut client = Client::new(password);
+    let (client_reg, regreq) = client.start_registration()?;
+    let response = server.start_registration(regreq, username)?;
+    let upload = client.finish_registration(client_reg, response)?;
+    Ok(server.finish_registration(upload))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
+    use rand::rngs::OsRng;
     use crate::{client::auth::Client, server::auth::Server};
     use opaque_ke::errors::ProtocolError;
+    use crate::server::auth::LoginResponse;
+    use crate::client::auth::LoginRequest;
+    use crate::server::auth::CredentialRequest;
+    
+    #[test]
+    fn serialization_round_trip() -> Result<(), crate::errors::Error> {
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
+        let stored = register_user(&server, "user", "password")?;
+        let mut client = Client::new("password");
+        //let mut server = Server::new();
+        
+        // === Login phase ===
+        let (client_login, credential_request) = client.start_login()?;
+        
+        let request = LoginRequest::new("user", credential_request.clone());
+        let request_json = serde_json::to_string(&request)?;
+        let parsed_request = serde_json::from_str(&request_json)?;
+        
+        assert_eq!(request, parsed_request);
+        let parsed_credential_request = CredentialRequest::deserialize(&base64::decode(&parsed_request.credentials.as_bytes())?)?;
+        assert_eq!(parsed_credential_request, credential_request);
+
+        let (server_login, credential_response) =
+            server.start_login(stored.clone(), parsed_credential_request, "user")?;
+        
+        let response = LoginResponse::PAKE((Uuid::new_v4(), credential_response));
+        let response_json = serde_json::to_string(&response)?;
+        let parsed_response = serde_json::from_str(&response_json)?;
+        
+        assert_eq!(response, parsed_response);
+        let parsed_login_response = match parsed_response {
+            LoginResponse::PAKE((_, resp)) => resp,
+            _ => panic!("basic sanity check failed")
+        };
+
+
+        let (client_key, client_finalization) =
+            client.finish_login(client_login, parsed_login_response)?;
+        
+        let server_key = server.finish_login(server_login, client_finalization)?;
+        assert_eq!(client_key, server_key);
+        Ok(())
+    }
 
     fn init_logger() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -36,7 +95,8 @@ mod tests {
     #[test]
     fn test_registration_flow() -> Result<(), ProtocolError> {
         init_logger();
-        let mut server = Server::new();
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
         let client = Client::new("correct horse battery staple");
 
         // === Step 1: Client starts registration ===
@@ -63,7 +123,8 @@ mod tests {
     #[test]
     fn test_full_login_flow() -> Result<(), ProtocolError> {
         init_logger();
-        let mut server = Server::new();
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
         let client = Client::new("hunter2");
 
         // === Registration phase ===
@@ -92,7 +153,8 @@ mod tests {
     #[test]
     fn test_login_with_wrong_password_fails() -> Result<(), ProtocolError> {
         init_logger();
-        let mut server = Server::new();
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
         let client_good = Client::new("letmein");
         let client_bad = Client::new("wrongpassword");
 
@@ -117,7 +179,8 @@ mod tests {
     #[test]
     fn test_multiple_users_independent_keys() -> Result<(), ProtocolError> {
         init_logger();
-        let mut server = Server::new();
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
 
         let alice = Client::new("password123");
         let bob = Client::new("hunter2");
@@ -162,7 +225,8 @@ mod tests {
     #[test]
     fn test_repeated_login_produces_unique_keys() -> Result<(), ProtocolError> {
         init_logger();
-        let mut server = Server::new();
+        let setup = ServerSetup::new(&mut OsRng);
+        let server = Server::new(setup);
         let client = Client::new("purplemonkeydishwasher");
 
         // Registration

@@ -5,7 +5,6 @@ use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey},
 };
 
-use rand::RngCore;
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 
@@ -37,8 +36,8 @@ pub fn generate_rsa_pkcs8_pair() -> (String, String) {
 /// # Example
 ///
 /// ```
-/// let hex = mycrate::sha256_hex("hello");
-/// assert_eq!(hex.len(), 64); // 32 bytes -> 64 hex chars
+/// let base64 = protocol::crypto::sha256_base64("hello");
+/// assert_eq!(base64.len(), 44);
 /// ```
 pub fn sha256_base64(input: &str) -> String {
     let mut hasher = Sha256::new();

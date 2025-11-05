@@ -14,15 +14,16 @@ use serde_derive::{Deserialize, Serialize};
 
 use opaque_ke::ServerLoginStartParameters;
 use opaque_ke::errors::ProtocolError;
-
+use uuid::Uuid;
 use crate::auth::DefaultCipherSuite;
 
 use rand::rngs::OsRng;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum LoginResponse {
     OTP(String),
-    PAKE(CredentialResponse),
+    /// used for opaque login, a UUID to identify the session, and a credential response.
+    PAKE((Uuid, CredentialResponse)),
     AccessDenied,
 }
 
@@ -32,10 +33,10 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new() -> Self {
+    pub fn new(setup: ServerSetup) -> Self {
         let mut rng = OsRng;
         Self {
-            setup: ServerSetup::new(&mut rng),
+            setup,
         }
     }
 
@@ -43,8 +44,9 @@ impl Server {
     pub fn start_registration(
         &self,
         request: RegistrationRequest<DefaultCipherSuite>,
-        username: &str,
+        username: impl Into<String>,
     ) -> Result<RegistrationResponse<DefaultCipherSuite>, ProtocolError> {
+        let username = username.into();
         let response =
             ServerRegistration::start(&self.setup, request, username.as_bytes())?.message;
         Ok(response)
@@ -52,7 +54,7 @@ impl Server {
 
     // Step 2: Finalize registration and store record
     pub fn finish_registration(
-        &mut self,
+        &self,
         upload: RegistrationUpload<DefaultCipherSuite>,
     ) -> ServerRegistration  {
         ServerRegistration::finish(upload)

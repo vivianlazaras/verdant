@@ -4,13 +4,14 @@ use opaque_ke::{
     ClientRegistrationFinishParameters, CredentialFinalization, CredentialRequest,
     CredentialResponse, RegistrationRequest, RegistrationUpload,
 };
+use uuid::Uuid;
 
 use crate::auth::DefaultCipherSuite;
 use serde_derive::{Deserialize, Serialize};
 
 use rand::rngs::OsRng;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(bincode::Encode, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LoginRequest {
     pub username: String,
     pub credentials: String,
