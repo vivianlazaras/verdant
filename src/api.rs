@@ -210,11 +210,9 @@ impl APIClient {
                         if !final_resp.verify(&key, &login_request, &initial_resp) {
                             panic!("failed to verify server authenticity");
                         }
-                        println!("about to match final_resp.result");
                         match final_resp.result {
                             LoginResult::Success(token) => {
                                 // token validation must be failing hmm
-                                println!("token: {}", token);
                                 let newtoken = self.validate_token(&token, &self.decoder)?;
                                 self.access_token = Some(newtoken.clone());
                                 Ok(LoginResult::Success(
@@ -268,5 +266,26 @@ impl APIClient {
         //jsonwebtoken::decode::<Value>(&jwt_str, decoder, &self.validation)?;
 
         Ok(jwt_str.to_string())
+    }
+
+    /// Fetches a LiveKit token from the server's `/rpc/token` endpoint.
+    ///
+    /// Requires that the `APIClient` has a valid `access_token` already set.
+    /// Uses the token as a Bearer auth header in the request.
+    pub async fn get_livekit_token(&self) -> Result<crate::verdant::TokenResponse, crate::errors::Error> {
+        let token = self.access_token.as_ref()
+            .ok_or_else(|| crate::errors::Error::Unauthorized)?;
+
+        let url = format!("{}/rpc/token", self.url.trim_end_matches('/'));
+
+        // Use a blocking reqwest client (since function is synchronous)
+        let client = reqwest::Client::new();
+        let resp = client
+            .get(&url)
+            .bearer_auth(token)
+            .send().await?;
+
+        let body = resp.json().await?;
+        Ok(body)
     }
 }

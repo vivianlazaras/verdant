@@ -45,7 +45,9 @@ pub enum Error {
     #[error("der Error: {0}")]
     DerError(#[from] der::Error),
     #[error("json decoding error: {0}")]
-    JsonErr(#[from] serde_json::Error)
+    JsonErr(#[from] serde_json::Error),
+    #[error("unauthorized, no access_token set")]
+    Unauthorized,
 }
 
 impl From<&str> for Error {
