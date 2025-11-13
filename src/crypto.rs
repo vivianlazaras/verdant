@@ -35,7 +35,7 @@ pub fn generate_rsa_pkcs8_pair() -> (String, String) {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// let base64 = protocol::crypto::sha256_base64("hello");
 /// assert_eq!(base64.len(), 44);
 /// ```

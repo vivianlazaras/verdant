@@ -4,13 +4,15 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ rust-overlay.overlays.default ];
           config.allowUnfree = true;
           config.android_sdk.accept_license = true;
         };
@@ -19,13 +21,20 @@
           rust
           sdk
           ndk
+          libunwind
           pkg-config
-          cmake
           rust-cbindgen
         ];
         ndkVersion = "27.0.12077973";
 
-        rust = pkgs.rustup;
+        rust = pkgs.rust-bin.stable.latest.default.override {
+          targets = [
+            "aarch64-linux-android"
+            "armv7-linux-androideabi"
+            "i686-linux-android"
+            "x86_64-linux-android"
+          ];
+        };
 
         # Android SDK + NDK setup
         androidEnv = pkgs.androidenv.composeAndroidPackages {
@@ -71,6 +80,7 @@
           }
         ];
         envSetup = ''
+          export HOME=$TMPDIR
           export NDK_HOME=${ndk}
           export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
           export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
@@ -88,22 +98,34 @@
             export CFLAGS_$triple_safe="-I${pkgs.pkgsCross.gnu32.glibc.dev}/include/ -DOPENSSL_32_BIT"
             
           fi
-          rustup target add ${t.triple}
           echo " - $triple_safe (${t.arch}, ${toString t.bits}-bit) ready"
           ''
         ) androidTargets);
         buildTargets = builtins.concatStringsSep "\n" (map (t: ''
-          cargo build --release --target ${t.triple}
+          ${rust}/bin/cargo build --release --target ${t.triple}
         '' ) androidTargets);
-        allTargetBuildPhase = builtins.concatStringsSep "\n" '' ${envSetup} ${configuredShellHook} ${buildTargets} '';
-      
+        
+        allTargetBuildPhase = ''
+          set -e
+          echo "Setting up Android NDK environment..."
+          ${envSetup}
+
+          echo "Configuring targets..."
+          ${configuredShellHook}
+
+          echo "Building all targets..."
+          ${buildTargets}
+        '';
+
       in {
-        packages.default = pkgs.stdenv.mkDerivation {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "libverdant";
           version = "0.1.0";
-
+          
           src = ./.;
-
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
           nativeBuildInputs = [
             rust
             ndk
@@ -116,7 +138,7 @@
           installPhase = ''
             mkdir -p $out/lib
             cp -rf target/ $out/lib/
-            cp -r ./src/include/ $out/include/ 
+            cp -r $src/include/ $out/include/ 
           '';
         };
 
