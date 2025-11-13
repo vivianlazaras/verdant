@@ -80,7 +80,6 @@
           }
         ];
         envSetup = ''
-          export HOME=$TMPDIR
           export NDK_HOME=${ndk}
           export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
           export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
@@ -102,7 +101,7 @@
           ''
         ) androidTargets);
         buildTargets = builtins.concatStringsSep "\n" (map (t: ''
-          ${rust}/bin/cargo build --release --target ${t.triple}
+          ${rust}/bin/cargo build --release --target ${t.triple} --features jni
         '' ) androidTargets);
         
         allTargetBuildPhase = ''

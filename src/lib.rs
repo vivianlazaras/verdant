@@ -8,3 +8,5 @@ pub mod config;
 pub mod livekit;
 pub mod native;
 pub mod services;
+#[cfg(feature = "jni")]
+pub mod jni;
