@@ -1,0 +1,13 @@
+[target.arm-linux-androideabi]
+linker = "armv7a-linux-androideabi24-clang"
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.armv7-linux-androideabi]
+linker = "armv7a-linux-androideabi24-clang"
+
+[target.x86-64-linux-android]
+linker = "x86_64-linux-android24-clang"
+
+[target.aarch64-linux-android]
+linker = "aarch64-linux-android24-clang"
+env = { "CFLAGS_arch64-linux-android" = "-DOPENSSL_64_BIT"}

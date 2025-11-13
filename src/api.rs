@@ -272,7 +272,7 @@ impl APIClient {
     ///
     /// Requires that the `APIClient` has a valid `access_token` already set.
     /// Uses the token as a Bearer auth header in the request.
-    pub async fn get_livekit_token(&self) -> Result<crate::verdant::TokenResponse, crate::errors::Error> {
+    pub async fn get_livekit_token(&self) -> Result<crate::livekit::TokenResponse, crate::errors::Error> {
         let token = self.access_token.as_ref()
             .ok_or_else(|| crate::errors::Error::Unauthorized)?;
 

@@ -14,7 +14,15 @@
           config.allowUnfree = true;
           config.android_sdk.accept_license = true;
         };
-
+        pkgBuildInputs = with pkgs; [
+          pkgs.glibc
+          rust
+          sdk
+          ndk
+          pkg-config
+          cmake
+          rust-cbindgen
+        ];
         ndkVersion = "27.0.12077973";
 
         rust = pkgs.rustup;
@@ -32,9 +40,66 @@
         ndk = androidEnv.ndk-bundle;
         sdk = androidEnv.androidsdk;
 
+        androidTargets = [
+          {
+            name = "armv7";
+            triple = "armv7-linux-androideabi";
+            clangPrefix = "armv7a-linux-androideabi24";
+            arch = "armeabi-v7a";
+            bits = 32;
+          }
+          {
+            name = "arm64";
+            triple = "aarch64-linux-android";
+            clangPrefix = "aarch64-linux-android24";
+            arch = "arm64-v8a";
+            bits = 64;
+          }
+          {
+            name = "x86";
+            triple = "i686-linux-android";
+            clangPrefix = "i686-linux-android24";
+            arch = "x86";
+            bits = 32;
+          }
+          {
+            name = "x86_64";
+            triple = "x86_64-linux-android";
+            clangPrefix = "x86_64-linux-android24";
+            arch = "x86_64";
+            bits = 64;
+          }
+        ];
+        envSetup = ''
+          export NDK_HOME=${ndk}
+          export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
+          export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+        '';
+        configuredShellHook = builtins.concatStringsSep "\n" (map (t:
+          ''
+          triple_safe=${builtins.replaceStrings ["-"] ["_"] t.triple}
+          export CC_$triple_safe="${t.clangPrefix}-clang"
+          export CXX_$triple_safe="${t.clangPrefix}-clang++"
+
+          export AR_$triple_safe="llvm-ar"
+          if [ ${toString t.bits} -eq 64 ]; then
+            export CFLAGS_$triple_safe="-DOPENSSL_64_BIT"
+          else
+            export CFLAGS_$triple_safe="-I${pkgs.pkgsCross.gnu32.glibc.dev}/include/ -DOPENSSL_32_BIT"
+            
+          fi
+          rustup target add ${t.triple}
+          echo " - $triple_safe (${t.arch}, ${toString t.bits}-bit) ready"
+          ''
+        ) androidTargets);
+        buildTargets = builtins.concatStringsSep "\n" (map (t: ''
+          cargo build --release --target ${t.triple}
+        '' ) androidTargets);
+        allTargetBuildPhase = builtins.concatStringsSep "\n" '' ${envSetup} ${configuredShellHook} ${buildTargets} '';
+      
       in {
         packages.default = pkgs.stdenv.mkDerivation {
-          pname = "rust-android-crate";
+          pname = "libverdant";
           version = "0.1.0";
 
           src = ./.;
@@ -44,50 +109,29 @@
             ndk
           ];
 
-          buildPhase = ''
-            export NDK_HOME=${ndk}
-            export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
-            export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-            
-            # Setup environment for Android target
-            export CC_aarch64_linux_android=aarch64-linux-android24-clang
-            export CXX_aarch64_linux_android=aarch64-linux-android24-clang++
-            export AR_aarch64_linux_android=llvm-ar
+          buildInputs = pkgBuildInputs;
 
-            rustup target add aarch64-linux-android
-
-            # Build Rust crate as shared library (.so)
-            cargo build --release --target aarch64-linux-android
-          '';
+          buildPhase = allTargetBuildPhase;
 
           installPhase = ''
             mkdir -p $out/lib
-            cp target/aarch64-linux-android/release/*.so $out/lib/
+            cp -rf target/ $out/lib/
+            cp -r ./src/include/ $out/include/ 
           '';
         };
 
         devShells.default = pkgs.mkShell {
-          name = "rust-android-devshell";
-          buildInputs = [
-            rust
-            sdk
-            ndk
-            pkgs.pkg-config
-            pkgs.cmake
-          ];
-
+          name = "verdant-devshell";
+          buildInputs = pkgBuildInputs;
+          
           shellHook = ''
-            export NDK_HOME=${ndk}
-            export SDK_NDK=${ndk}/libexec/android-sdk/ndk/${ndkVersion}
-            export PATH=$SDK_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+            ${envSetup}
             
-            export CC_aarch64_linux_android=aarch64-linux-android24-clang
-            export CXX_aarch64_linux_android=aarch64-linux-android24-clang++
-            export AR_aarch64_linux_android=llvm-ar
+            ${configuredShellHook}
 
             echo "✅ Android NDK ready for Rust cross-compilation"
             echo "You can now run: cargo build --target aarch64-linux-android --release"
           '';
         };
-      });
+  });
 }
