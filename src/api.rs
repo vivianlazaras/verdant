@@ -93,6 +93,11 @@ impl APIClient {
             Some(addr) => addr.to_string(),
             None => return Err(Error::MissingIpAddr),
         };
+        
+        Self::from_url(url).await
+    }
+    pub async fn from_url(url: impl Into<String>) -> Result<Self, crate::errors::Error> {
+        let url = url.into();
         let client = Client::new();
         let key_url = format!("{}/pubkey", url);
         let jsonresp = client.get(&key_url).send().await?.bytes().await?;

@@ -206,6 +206,7 @@ pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> Verd
                         Err(_) => VerdantEventFFI{ tag: VerdantEventTag::Error as u32, payload: ptr::null_mut() },
                     }
                 }
+                _ => unimplemented!(),
             }
         }
         None => VerdantEventFFI{ tag: VerdantEventTag::None as u32, payload: ptr::null_mut() },

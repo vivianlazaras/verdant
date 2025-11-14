@@ -5,6 +5,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use jni_sys::*;
+use crate::services::VerdantErr;
 
 use serde_json;
 use tokio::runtime::Runtime;
@@ -28,19 +29,6 @@ impl<'r> VerdantEventFFI<'r> {
         Self {
             tag,
             payload
-        }
-    }
-
-    pub fn from_event(env: &mut JNIEnv<'r>, event: &VerdantUiCmd) -> Self {
-        let payload = serde_json::to_string(event).expect("failed to serialize payload");
-        let tag = match event {
-            VerdantUiCmd::ServerDiscovered(_) => VERDANT_SERVER_DISCOVERED,
-            VerdantUiCmd::LoginResult(_) => VERDANT_LOGIN_RESULT,
-            VerdantUiCmd::LkToken(_, _) => VERDANT_LK_RESPONSE,
-        };
-        Self {
-            payload: env.new_string(payload).expect("failed to create new payload"),
-            tag
         }
     }
 
@@ -172,6 +160,10 @@ pub extern "system" fn Java_org_qrespite_verdant_VerdantService_TryRecv<'r>(
             let event = serde_json::to_string(&evt).unwrap();
             env.new_string(event).expect("failed to create event JString")
         }
-        None => env.new_string("").expect("failed to create empty JString"),
+        None => {
+            let noop = VerdantUiCmd::Error(VerdantErr::noop());
+            let noop_str = serde_json::to_string(&noop).unwrap();
+            env.new_string(&noop_str).expect("failed to create empty JString") 
+        },
     }
 }

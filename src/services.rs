@@ -14,6 +14,21 @@ pub struct ServerIdentifier {
     url: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VerdantErr {
+    errorcode: i32,
+    message: String,
+}
+
+impl VerdantErr {
+    pub fn noop() -> Self {
+        Self {
+            errorcode: 0,
+            message: String::from("nothing to do, this is used for debugging"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VerdantUiCmd {
     LoginResult(LoginResult),
@@ -22,6 +37,7 @@ pub enum VerdantUiCmd {
     ServerDiscovered(Discovery),
     /// a means of identifying the server when sending back token response
     LkToken(String, TokenResponse),
+    Error(VerdantErr),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,7 +202,27 @@ async fn verdant_service(
                     if let Ok(response) = client.get_livekit_token().await {
                         ui_tx.send(VerdantUiCmd::LkToken(request.url.to_string(), response)).unwrap();
                     }
-                } else {
+                } else if let Ok(mut client) = APIClient::from_url(&request.url).await {
+                    let result = match client
+                        .login(&request.username, &request.password)
+                        .await {
+                            Ok(result) => result,
+                            Err(e) => {
+                                eprintln!("login error: {}", e);
+                                LoginResult::Unauthorized
+                            },
+                        };
+                    println!("login result: {} {:?}", &request.username, result);
+                    let cmd = VerdantUiCmd::LoginResult(result);
+                    ui_tx.send(cmd).unwrap();
+
+                    // now request token
+                    if let Ok(response) = client.get_livekit_token().await {
+                        ui_tx.send(VerdantUiCmd::LkToken(request.url.to_string(), response)).unwrap();
+                    }
+                    clients.insert(request.url.clone(), client);
+                    
+                }else{
                     let result =
                         VerdantUiCmd::LoginResult(LoginResult::UnknownServer(request.url.clone()));
                     ui_tx.send(result).unwrap();
