@@ -1,17 +1,17 @@
+use crate::services::VerdantErr;
 use jni::JNIEnv;
 use jni::objects::JString;
 use jni::sys::jint;
+use jni_sys::*;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
-use jni_sys::*;
-use crate::services::VerdantErr;
 
 use serde_json;
 use tokio::runtime::Runtime;
 
+use crate::services::{LoginRequest, VerdantCmd, VerdantService, VerdantUiCmd};
 use keycast::discovery::Discovery;
-use crate::services::{VerdantCmd, VerdantUiCmd, VerdantService, LoginRequest};
 
 pub const VERDANT_SERVER_DISCOVERED: i64 = 1;
 pub const VERDANT_LOGIN_RESULT: i64 = 2;
@@ -26,23 +26,18 @@ struct VerdantEventFFI<'r> {
 impl<'r> VerdantEventFFI<'r> {
     pub fn new(env: &mut JNIEnv<'r>, msg: &str, tag: jlong) -> Self {
         let payload = env.new_string(msg).expect("failed to create payload");
-        Self {
-            tag,
-            payload
-        }
+        Self { tag, payload }
     }
 
     pub fn empty(env: &mut JNIEnv<'r>) -> Self {
         Self {
             payload: env.new_string("").expect("failed to create string"),
-            tag: 0
+            tag: 0,
         }
     }
 }
 
 unsafe fn jstring_to_rust(env: &mut JNIEnv, jstr: JString) -> String {
-    
-
     env.get_string(&jstr).expect("failed to get string").into()
 }
 
@@ -131,10 +126,8 @@ pub extern "system" fn Java_org_qrespite_verdant_VerdantService_login(
 
     // Convert Java strings to Rust
     let url = unsafe { jstring_to_rust(&mut env, jurl) };
-    let username =
-        unsafe { jstring_to_rust(&mut env, jusername) };
-    let password =
-        unsafe { jstring_to_rust(&mut env, jpassword) };
+    let username = unsafe { jstring_to_rust(&mut env, jusername) };
+    let password = unsafe { jstring_to_rust(&mut env, jpassword) };
 
     let tx = svc.tx().clone();
     match VerdantService::login(&tx, url, username, password) {
@@ -158,12 +151,14 @@ pub extern "system" fn Java_org_qrespite_verdant_VerdantService_TryRecv<'r>(
     match svc.try_recv() {
         Some(evt) => {
             let event = serde_json::to_string(&evt).unwrap();
-            env.new_string(event).expect("failed to create event JString")
+            env.new_string(event)
+                .expect("failed to create event JString")
         }
         None => {
             let noop = VerdantUiCmd::Error(VerdantErr::noop());
             let noop_str = serde_json::to_string(&noop).unwrap();
-            env.new_string(&noop_str).expect("failed to create empty JString") 
-        },
+            env.new_string(&noop_str)
+                .expect("failed to create empty JString")
+        }
     }
 }

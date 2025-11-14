@@ -1,19 +1,19 @@
 use crate::client::auth as client_auth;
 
 use crate::auth::LoginResult;
-use crate::server::auth::LoginResponse;
 use crate::auth::challenge::LoginUpload;
-use reqwest;
-use serde_json::Value;
-use serde_derive::{Serialize, Deserialize};
 use crate::errors::Error;
+use crate::server::auth::LoginResponse;
 use aes_gcm::{
     Aes256Gcm,
     aead::{Aead, KeyInit, generic_array::GenericArray},
 };
+use reqwest;
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
 
-use jsonwebtoken::{DecodingKey, Algorithm, Validation};
 use crate::auth::challenge::LoginCompletion;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use reqwest::Client;
 use sha2::Sha256;
 
@@ -77,12 +77,8 @@ impl PubKeyResponse {
 
     pub fn encode_pubkey(key_type: KeyType, der: &[u8]) -> Self {
         let pubkey = base64::encode(der);
-        Self {
-            key_type,
-            pubkey
-        }
+        Self { key_type, pubkey }
     }
-    
 }
 
 impl APIClient {
@@ -93,7 +89,7 @@ impl APIClient {
             Some(addr) => addr.to_string(),
             None => return Err(Error::MissingIpAddr),
         };
-        
+
         Self::from_url(url).await
     }
     pub async fn from_url(url: impl Into<String>) -> Result<Self, crate::errors::Error> {
@@ -121,7 +117,12 @@ impl APIClient {
         let mut validation = Validation::default();
         validation.algorithms = vec![Algorithm::RS256, Algorithm::RS384, Algorithm::RS512];
 
-        Ok(Self { url, decoder: key, access_token: None, validation })
+        Ok(Self {
+            url,
+            decoder: key,
+            access_token: None,
+            validation,
+        })
     }
     /// Create a new API client pointing at `url`.
     pub fn new(url: impl Into<String>, decoder: DecodingKey, validation: Validation) -> Self {
@@ -129,7 +130,7 @@ impl APIClient {
             url: url.into(),
             decoder,
             access_token: None,
-            validation
+            validation,
         }
     }
 
@@ -200,7 +201,13 @@ impl APIClient {
             LoginResponse::PAKE((id, cred_response)) => {
                 match opaque_client.finish_login(client_login, cred_response.clone()) {
                     Ok((key, finalize)) => {
-                        let upload = LoginUpload::new(id.clone(), finalize, &key, &login_request, &initial_resp);
+                        let upload = LoginUpload::new(
+                            id.clone(),
+                            finalize,
+                            &key,
+                            &login_request,
+                            &initial_resp,
+                        );
                         let finalize_endpoint =
                             format!("{}/auth/api/login/finalize", self.url.trim_end_matches('/'));
 
@@ -220,16 +227,14 @@ impl APIClient {
                                 // token validation must be failing hmm
                                 let newtoken = self.validate_token(&token, &self.decoder)?;
                                 self.access_token = Some(newtoken.clone());
-                                Ok(LoginResult::Success(
-                                    newtoken
-                                ))
-                            },
+                                Ok(LoginResult::Success(newtoken))
+                            }
                             _ => Ok(final_resp.result),
                         }
                     }
                     Err(e) => Err(crate::errors::Error::Opaque(e)),
                 }
-            },
+            }
             _ => Ok(LoginResult::Unauthorized),
         }
     }
@@ -277,18 +282,19 @@ impl APIClient {
     ///
     /// Requires that the `APIClient` has a valid `access_token` already set.
     /// Uses the token as a Bearer auth header in the request.
-    pub async fn get_livekit_token(&self) -> Result<crate::livekit::TokenResponse, crate::errors::Error> {
-        let token = self.access_token.as_ref()
+    pub async fn get_livekit_token(
+        &self,
+    ) -> Result<crate::livekit::TokenResponse, crate::errors::Error> {
+        let token = self
+            .access_token
+            .as_ref()
             .ok_or_else(|| crate::errors::Error::Unauthorized)?;
 
         let url = format!("{}/rpc/token", self.url.trim_end_matches('/'));
 
         // Use a blocking reqwest client (since function is synchronous)
         let client = reqwest::Client::new();
-        let resp = client
-            .get(&url)
-            .bearer_auth(token)
-            .send().await?;
+        let resp = client.get(&url).bearer_auth(token).send().await?;
 
         let body = resp.json().await?;
         Ok(body)

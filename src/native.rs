@@ -6,8 +6,8 @@ use serde_json;
 
 use tokio::runtime::Runtime;
 
-use keycast::discovery::Discovery; // for type references in comments
-use crate::services::{VerdantCmd, VerdantUiCmd, VerdantService, LoginRequest}; // adjust paths if needed
+use crate::services::{LoginRequest, VerdantCmd, VerdantService, VerdantUiCmd};
+use keycast::discovery::Discovery; // for type references in comments // adjust paths if needed
 
 /// Opaque C handle
 #[repr(C)]
@@ -43,7 +43,7 @@ pub struct LoginResultFFI {
 /// to the caller. The caller must call `verdant_free_cstring(payload)` when done.
 #[repr(C)]
 pub struct VerdantEventFFI {
-    pub tag: u32,          // VerdantEventTag as u32
+    pub tag: u32,             // VerdantEventTag as u32
     pub payload: *mut c_char, // JSON string or null
 }
 
@@ -140,9 +140,15 @@ pub extern "C" fn verdant_service_login(
     let svc = unsafe { &*handle.inner };
 
     // safely copy strings
-    let url = unsafe { CStr::from_ptr(url) }.to_string_lossy().into_owned();
-    let username = unsafe { CStr::from_ptr(username) }.to_string_lossy().into_owned();
-    let password = unsafe { CStr::from_ptr(password) }.to_string_lossy().into_owned();
+    let url = unsafe { CStr::from_ptr(url) }
+        .to_string_lossy()
+        .into_owned();
+    let username = unsafe { CStr::from_ptr(username) }
+        .to_string_lossy()
+        .into_owned();
+    let password = unsafe { CStr::from_ptr(password) }
+        .to_string_lossy()
+        .into_owned();
 
     // clone sender and send using VerdantService::login helper
     // tx() returns &UnboundedSender<VerdantCmd>, so clone it
@@ -157,16 +163,16 @@ pub extern "C" fn verdant_service_login(
 /// If no event is available, returns an event with tag = None and payload = NULL.
 /// Caller is responsible for freeing `payload` if non-null by calling `verdant_free_cstring`.
 #[unsafe(no_mangle)]
-pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> VerdantEventFFI{
+pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> VerdantEventFFI {
     if h.is_null() {
-        return VerdantEventFFI{
+        return VerdantEventFFI {
             tag: VerdantEventTag::None as u32,
             payload: ptr::null_mut(),
         };
     }
     let handle = unsafe { &mut *h };
     if handle.inner.is_null() {
-        return VerdantEventFFI{
+        return VerdantEventFFI {
             tag: VerdantEventTag::None as u32,
             payload: ptr::null_mut(),
         };
@@ -182,9 +188,15 @@ pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> Verd
                     match serde_json::to_string(&login_res) {
                         Ok(json) => {
                             let c = CString::new(json).unwrap_or_default().into_raw();
-                            VerdantEventFFI{ tag: VerdantEventTag::LoginResult as u32, payload: c }
+                            VerdantEventFFI {
+                                tag: VerdantEventTag::LoginResult as u32,
+                                payload: c,
+                            }
                         }
-                        Err(_) => VerdantEventFFI{ tag: VerdantEventTag::Error as u32, payload: ptr::null_mut() },
+                        Err(_) => VerdantEventFFI {
+                            tag: VerdantEventTag::Error as u32,
+                            payload: ptr::null_mut(),
+                        },
                     }
                 }
                 VerdantUiCmd::ServerDiscovered(discovery) => {
@@ -192,24 +204,37 @@ pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> Verd
                     match serde_json::to_string(&discovery) {
                         Ok(json) => {
                             let c = CString::new(json).unwrap_or_default().into_raw();
-                            VerdantEventFFI{ tag: VerdantEventTag::ServerDiscovered as u32, payload: c }
+                            VerdantEventFFI {
+                                tag: VerdantEventTag::ServerDiscovered as u32,
+                                payload: c,
+                            }
                         }
-                        Err(_) => VerdantEventFFI{ tag: VerdantEventTag::Error as u32, payload: ptr::null_mut() },
+                        Err(_) => VerdantEventFFI {
+                            tag: VerdantEventTag::Error as u32,
+                            payload: ptr::null_mut(),
+                        },
                     }
                 }
-                VerdantUiCmd::LkToken(_, token) => {
-                    match serde_json::to_string(&token) {
-                        Ok(json) => {
-                            let c = CString::new(json).unwrap_or_default().into_raw();
-                            VerdantEventFFI{ tag: VerdantEventTag::LkToken as u32, payload: c }
+                VerdantUiCmd::LkToken(token) => match serde_json::to_string(&token) {
+                    Ok(json) => {
+                        let c = CString::new(json).unwrap_or_default().into_raw();
+                        VerdantEventFFI {
+                            tag: VerdantEventTag::LkToken as u32,
+                            payload: c,
                         }
-                        Err(_) => VerdantEventFFI{ tag: VerdantEventTag::Error as u32, payload: ptr::null_mut() },
                     }
-                }
+                    Err(_) => VerdantEventFFI {
+                        tag: VerdantEventTag::Error as u32,
+                        payload: ptr::null_mut(),
+                    },
+                },
                 _ => unimplemented!(),
             }
         }
-        None => VerdantEventFFI{ tag: VerdantEventTag::None as u32, payload: ptr::null_mut() },
+        None => VerdantEventFFI {
+            tag: VerdantEventTag::None as u32,
+            payload: ptr::null_mut(),
+        },
     }
 }
 
@@ -236,9 +261,7 @@ pub extern "C" fn verdant_runtime_new() -> RuntimeHandle {
         Ok(rt) => Box::into_raw(Box::new(rt)),
         Err(_) => ptr::null_mut(),
     };
-    RuntimeHandle {
-        ptr
-    }
+    RuntimeHandle { ptr }
 }
 
 /// Free a Tokio runtime created with `verdant_runtime_new()`.

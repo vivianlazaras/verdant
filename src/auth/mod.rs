@@ -1,14 +1,14 @@
-pub mod registration;
 pub mod challenge;
-use crate::server::auth::Server;
+pub mod registration;
 use crate::client::auth::Client;
 use crate::errors::ProtocolError;
+use crate::server::auth::Server;
 use serde_derive::{Deserialize, Serialize};
 
 pub struct DefaultCipherSuite;
 
-use opaque_ke::CipherSuite;
 use crate::server::auth::ServerSetup;
+use opaque_ke::CipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
     type OprfCs = opaque_ke::Ristretto255;
@@ -28,7 +28,11 @@ pub enum LoginResult {
 }
 
 /// takes in a username and password and produces a ServerRegistration
-pub fn register_user(server: &Server, username: impl Into<String>, password: impl Into<String>) -> Result<crate::server::auth::ServerRegistration, ProtocolError> {
+pub fn register_user(
+    server: &Server,
+    username: impl Into<String>,
+    password: impl Into<String>,
+) -> Result<crate::server::auth::ServerRegistration, ProtocolError> {
     let mut client = Client::new(password);
     let (client_reg, regreq) = client.start_registration()?;
     let response = server.start_registration(regreq, username)?;
@@ -39,14 +43,14 @@ pub fn register_user(server: &Server, username: impl Into<String>, password: imp
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
-    use rand::rngs::OsRng;
-    use crate::{client::auth::Client, server::auth::Server};
-    use opaque_ke::errors::ProtocolError;
-    use crate::server::auth::LoginResponse;
     use crate::client::auth::LoginRequest;
     use crate::server::auth::CredentialRequest;
-    
+    use crate::server::auth::LoginResponse;
+    use crate::{client::auth::Client, server::auth::Server};
+    use opaque_ke::errors::ProtocolError;
+    use rand::rngs::OsRng;
+    use uuid::Uuid;
+
     #[test]
     fn serialization_round_trip() -> Result<(), crate::errors::Error> {
         let setup = ServerSetup::new(&mut OsRng);
@@ -54,35 +58,36 @@ mod tests {
         let stored = register_user(&server, "user", "password")?;
         let mut client = Client::new("password");
         //let mut server = Server::new();
-        
+
         // === Login phase ===
         let (client_login, credential_request) = client.start_login()?;
-        
+
         let request = LoginRequest::new("user", credential_request.clone());
         let request_json = serde_json::to_string(&request)?;
         let parsed_request = serde_json::from_str(&request_json)?;
-        
+
         assert_eq!(request, parsed_request);
-        let parsed_credential_request = CredentialRequest::deserialize(&base64::decode(&parsed_request.credentials.as_bytes())?)?;
+        let parsed_credential_request = CredentialRequest::deserialize(&base64::decode(
+            &parsed_request.credentials.as_bytes(),
+        )?)?;
         assert_eq!(parsed_credential_request, credential_request);
 
         let (server_login, credential_response) =
             server.start_login(stored.clone(), parsed_credential_request, "user")?;
-        
+
         let response = LoginResponse::PAKE((Uuid::new_v4(), credential_response));
         let response_json = serde_json::to_string(&response)?;
         let parsed_response = serde_json::from_str(&response_json)?;
-        
+
         assert_eq!(response, parsed_response);
         let parsed_login_response = match parsed_response {
             LoginResponse::PAKE((_, resp)) => resp,
-            _ => panic!("basic sanity check failed")
+            _ => panic!("basic sanity check failed"),
         };
-
 
         let (client_key, client_finalization) =
             client.finish_login(client_login, parsed_login_response)?;
-        
+
         let server_key = server.finish_login(server_login, client_finalization)?;
         assert_eq!(client_key, server_key);
         Ok(())

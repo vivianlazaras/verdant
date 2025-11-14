@@ -1,18 +1,17 @@
-
-use crate::client::auth::LoginRequest;
-use crate::server::auth::LoginResponse;
 use crate::auth::LoginResult;
+use crate::client::auth::LoginRequest;
 use crate::server::auth::CredentialFinalization;
+use crate::server::auth::LoginResponse;
+use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
-use serde_derive::{Serialize, Deserialize};
 
-use hmac::{Hmac, Mac};
-use hkdf::Hkdf;
-use sha2::Sha256;
-use base64::engine::general_purpose::STANDARD;
-use std::str::FromStr;
-use std::fmt;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use hkdf::Hkdf;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use std::fmt;
+use std::str::FromStr;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -98,7 +97,7 @@ impl LoginUpload {
     /// Verifies the tag using a precomputed [`Transcript`]
     pub fn verify_transcript(&self, session_key: &[u8], transcript: &Transcript) -> bool {
         let k_confirm = derive_k_confirm(session_key);
-        
+
         let mut data = transcript.clone().into_inner();
         data.extend_from_slice(b"client");
 
@@ -135,7 +134,7 @@ impl LoginCompletion {
     pub fn unauthorized() -> Self {
         Self {
             result: LoginResult::Unauthorized,
-            server_tag: [0u8; 32]
+            server_tag: [0u8; 32],
         }
     }
     /// Constructs a new `LoginCompletion` message.
@@ -149,13 +148,9 @@ impl LoginCompletion {
     /// # Security
     /// The HMAC is computed as:
     /// `HMAC(K_confirm, transcript || "server")`
-    pub fn new(
-        result: LoginResult,
-        session_key: &[u8],
-        transcript: Transcript,
-    ) -> Self {
+    pub fn new(result: LoginResult, session_key: &[u8], transcript: Transcript) -> Self {
         let k_confirm = derive_k_confirm(session_key);
-        
+
         // Server HMAC binds the same transcript and "server" label
         let mut data = transcript.clone().into_inner();
         data.extend_from_slice(b"server");
@@ -190,7 +185,6 @@ impl LoginCompletion {
     }
 }
 
-
 /// Derives a confirmation key `K_confirm` from the session key `K_session`.
 ///
 /// This key is used exclusively for producing confirmation HMACs that
@@ -218,7 +212,9 @@ fn compute_hmac(k_confirm: &[u8], data: impl AsRef<[u8]>) -> [u8; 32] {
     tag
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, bincode::Encode, bincode::Decode, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, bincode::Encode, bincode::Decode, PartialEq, Eq, Hash,
+)]
 pub struct Transcript {
     pub(crate) transcript: Vec<u8>,
 }
@@ -298,11 +294,11 @@ impl FromStr for Transcript {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
-    use rand::{RngCore, rngs::OsRng};
     use bincode;
+    use rand::{RngCore, rngs::OsRng};
     use serde_json;
     use std::str::FromStr;
+    use uuid::Uuid;
 
     fn random_session_key() -> [u8; 32] {
         let mut key = [0u8; 32];
@@ -328,10 +324,14 @@ mod tests {
         let original = Transcript::new(data.clone());
 
         let encoded = bincode::encode_to_vec(&original, bincode::config::standard()).unwrap();
-        let (decoded, _) = bincode::decode_from_slice::<Transcript, bincode::config::Configuration>(&encoded, bincode::config::standard()).unwrap();
+        let (decoded, _) =
+            bincode::decode_from_slice::<Transcript, bincode::config::Configuration>(
+                &encoded,
+                bincode::config::standard(),
+            )
+            .unwrap();
 
         assert_eq!(original, decoded);
         assert_eq!(decoded.as_bytes(), data.as_slice());
     }
-
 }

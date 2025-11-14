@@ -1,7 +1,4 @@
-use opaque_ke::{
-    RegistrationRequest, RegistrationResponse,
-    RegistrationUpload
-};
+use opaque_ke::{RegistrationRequest, RegistrationResponse, RegistrationUpload};
 
 pub type ServerSetup = opaque_ke::ServerSetup<DefaultCipherSuite>;
 pub type ServerLogin = opaque_ke::ServerLogin<DefaultCipherSuite>;
@@ -12,10 +9,10 @@ pub type CredentialFinalization = opaque_ke::CredentialFinalization<DefaultCiphe
 
 use serde_derive::{Deserialize, Serialize};
 
+use crate::auth::DefaultCipherSuite;
 use opaque_ke::ServerLoginStartParameters;
 use opaque_ke::errors::ProtocolError;
 use uuid::Uuid;
-use crate::auth::DefaultCipherSuite;
 
 use rand::rngs::OsRng;
 
@@ -35,9 +32,7 @@ pub struct Server {
 impl Server {
     pub fn new(setup: ServerSetup) -> Self {
         let mut rng = OsRng;
-        Self {
-            setup,
-        }
+        Self { setup }
     }
 
     // Step 1: Handle registration request
@@ -56,7 +51,7 @@ impl Server {
     pub fn finish_registration(
         &self,
         upload: RegistrationUpload<DefaultCipherSuite>,
-    ) -> ServerRegistration  {
+    ) -> ServerRegistration {
         ServerRegistration::finish(upload)
     }
 
@@ -66,13 +61,7 @@ impl Server {
         registration: ServerRegistration,
         credential_request: CredentialRequest,
         username: &str,
-    ) -> Result<
-        (
-            ServerLogin,
-            CredentialResponse,
-        ),
-        ProtocolError,
-    > {
+    ) -> Result<(ServerLogin, CredentialResponse), ProtocolError> {
         let mut rng = OsRng;
         let result = ServerLogin::start(
             &mut rng,
@@ -88,8 +77,8 @@ impl Server {
     // Step 4: Finish login
     pub fn finish_login(
         &self,
-        server_login: ServerLogin ,
-        client_finalization: CredentialFinalization ,
+        server_login: ServerLogin,
+        client_finalization: CredentialFinalization,
     ) -> Result<Vec<u8>, ProtocolError> {
         // now both sides share a session key!
         let result = server_login.finish(client_finalization)?;
