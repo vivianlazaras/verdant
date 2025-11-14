@@ -33,7 +33,7 @@ for arch in "${ARCHS[@]}"; do
     mkdir -p "$DEST_DIR"
 
     echo "Copying $arch libraries to $DEST_DIR"
-    cp -v "$TARGET_SO_DIR"/*.so "$DEST_DIR"/ || echo "No .so files for $arch"
+    sudo cp -v "$TARGET_SO_DIR"/*.so "$DEST_DIR"/ || echo "No .so files for $arch"
 done
 
 echo "✅ All libraries copied to jniLibs."

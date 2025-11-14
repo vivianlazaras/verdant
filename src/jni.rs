@@ -157,20 +157,21 @@ pub extern "system" fn Java_org_qrespite_verdant_VerdantService_login(
 
 /// Try receive event
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_qrespite_verdant_VerdantService_try_recv<'r>(
+pub extern "system" fn Java_org_qrespite_verdant_VerdantService_TryRecv<'r>(
     mut env: JNIEnv<'r>,
     _class: jni_sys::jclass,
     svc_ptr: jlong,
-) -> VerdantEventFFI<'r> {
+) -> JString<'r> {
     if svc_ptr == 0 {
-        return VerdantEventFFI::empty(&mut env);
+        return env.new_string("").expect("failed to create empty JString");
     }
     let svc = unsafe { &mut *(svc_ptr as *mut VerdantService) };
 
     match svc.try_recv() {
         Some(evt) => {
-            VerdantEventFFI::from_event(&mut env, &evt)
+            let event = serde_json::to_string(&evt).unwrap();
+            env.new_string(event).expect("failed to create event JString")
         }
-        None => VerdantEventFFI::empty(&mut env),
+        None => env.new_string("").expect("failed to create empty JString"),
     }
 }
