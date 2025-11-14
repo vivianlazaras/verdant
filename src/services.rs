@@ -8,13 +8,20 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 pub struct ServiceState {}
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct ServerIdentifier {
+    name: String,
+    url: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VerdantUiCmd {
     LoginResult(LoginResult),
     /// this variant is in both [`VerdantUiCmd`] and in [`VerdantCmd`] because it can result
     /// from the background service through mdns_sd, and through the user manually entering needed information.
     ServerDiscovered(Discovery),
-    LkToken(TokenResponse),
+    /// a means of identifying the server when sending back token response
+    LkToken(String, TokenResponse),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,11 +66,13 @@ pub struct VerdantService {
 async fn discover(service: &str) -> Result<Vec<Discovery>, keycast::errors::BeaconError> {
     let ident = ServiceIdent::TCP(service.to_string());
 
-    let beacons = Beacon::discover(ident, WaitFor::FirstDiscovery, None).await?;
+    let beacons = Beacon::discover(ident, WaitFor::Continous, None).await?;
     Ok(beacons)
 }
 
 impl VerdantService {
+    /// this method needs to be updated because currently it blocks
+    /// waiting for a discovery
     pub fn new(
         runtime: &tokio::runtime::Runtime,
         discovery: bool,
@@ -74,30 +83,24 @@ impl VerdantService {
         // clone the command tx for the discovery thread to notify the service of additional servers
         // which will in turn notify the UI thread.
         let cmd_tx_clone = cmd_tx.clone();
-        std::thread::spawn(move || {
+        {
             let mut discovered = Vec::new();
             let discovery_handle = if discovery {
-                // try to find at least the first server, then launch background to get more servers
-                let discoveries: Vec<Discovery> = handle.block_on(async move {
-                    // here's where we discover servers
-                    discover("verdant").await
-                })?;
-                println!("discovered: {:?}", discoveries);
-                discovered.extend_from_slice(&discoveries);
-                let known = discovered.clone();
+                
+                let mut known = discovered.clone();
                 let discovery_handle = handle.spawn(async move {
-
-                    /*while let Ok(mut beacons) = discover("verdant").await {
-                        for beacon in beacons.into_iter() {
-                            if !known.contains(&beacon) {
-                                known.push(beacon.clone());
-                                match cmd_tx_clone.send(VerdantCmd::ServerDiscovered(beacon)) {
-                                    Ok(_) => continue,
-                                    Err(e) => break,
-                                }
-                            }
+                    let ident = ServiceIdent::TCP("verdant".to_string());
+                    Beacon::discover(ident, WaitFor::Continous, Some(Box::new(move |result| {
+                        let discovery = result.unwrap();
+                        println!("new discovery: {:?}", discovery);
+                        if !known.contains(&discovery) {
+                            known.push(discovery.clone());
+                            match cmd_tx_clone.send(VerdantCmd::ServerDiscovered(discovery)) {
+                                Ok(_) => {},
+                                Err(e) => eprintln!("send error: {}", e),
+                            };
                         }
-                    }*/
+                    }))).await;
                     // to be implemented
                 });
                 Some(discovery_handle)
@@ -122,9 +125,7 @@ impl VerdantService {
                 cmd_tx,
                 service_handle,
             })
-        })
-        .join()
-        .unwrap()
+        }
     }
 
     pub fn tx(&self) -> &UnboundedSender<VerdantCmd> {
@@ -162,8 +163,9 @@ async fn verdant_service(
         match event {
             VerdantCmd::ServerDiscovered(discovery) => {
                 let url = discovery.urls().get(0).unwrap().clone();
-                let client = APIClient::from_discovery(discovery).await.unwrap();
+                let client = APIClient::from_discovery(discovery.clone()).await.unwrap();
                 clients.insert(url, client);
+                ui_tx.send(VerdantUiCmd::ServerDiscovered(discovery)).unwrap();
             }
             VerdantCmd::Login(request) => {
                 if let Some(client) = clients.get_mut(&request.url) {
@@ -182,7 +184,7 @@ async fn verdant_service(
 
                     // now request token
                     if let Ok(response) = client.get_livekit_token().await {
-                        ui_tx.send(VerdantUiCmd::LkToken(response)).unwrap();
+                        ui_tx.send(VerdantUiCmd::LkToken(request.url.to_string(), response)).unwrap();
                     }
                 } else {
                     let result =

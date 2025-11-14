@@ -36,7 +36,7 @@ impl<'r> VerdantEventFFI<'r> {
         let tag = match event {
             VerdantUiCmd::ServerDiscovered(_) => VERDANT_SERVER_DISCOVERED,
             VerdantUiCmd::LoginResult(_) => VERDANT_LOGIN_RESULT,
-            VerdantUiCmd::LkToken(_) => VERDANT_LK_RESPONSE,
+            VerdantUiCmd::LkToken(_, _) => VERDANT_LK_RESPONSE,
         };
         Self {
             payload: env.new_string(payload).expect("failed to create new payload"),

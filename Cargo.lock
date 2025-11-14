@@ -1285,9 +1285,9 @@ dependencies = [
 
 [[package]]
 name = "keycast"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cad3997d21d948bcb92c9f07efd8526f353ca77f843539ac913ff211b763a194"
+checksum = "f418c882046f91b39ceb26137d583a686d8de550bc9bbd284074bc4f0982b607"
 dependencies = [
  "base64",
  "ed25519-dalek",

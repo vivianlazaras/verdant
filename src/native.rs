@@ -197,7 +197,7 @@ pub extern "C" fn verdant_service_try_recv(h: *mut VerdantServiceHandle) -> Verd
                         Err(_) => VerdantEventFFI{ tag: VerdantEventTag::Error as u32, payload: ptr::null_mut() },
                     }
                 }
-                VerdantUiCmd::LkToken(token) => {
+                VerdantUiCmd::LkToken(_, token) => {
                     match serde_json::to_string(&token) {
                         Ok(json) => {
                             let c = CString::new(json).unwrap_or_default().into_raw();
