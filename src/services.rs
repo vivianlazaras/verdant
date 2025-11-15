@@ -109,7 +109,7 @@ impl VerdantService {
         // which will in turn notify the UI thread.
         let cmd_tx_clone = cmd_tx.clone();
         {
-            let mut discovered = Vec::new();
+            let discovered = Vec::new();
             let discovery_handle = if discovery {
                 let mut known = discovered.clone();
                 let discovery_handle = handle.spawn(async move {

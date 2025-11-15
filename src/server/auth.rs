@@ -31,7 +31,6 @@ pub struct Server {
 
 impl Server {
     pub fn new(setup: ServerSetup) -> Self {
-        let mut rng = OsRng;
         Self { setup }
     }
 
