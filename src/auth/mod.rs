@@ -7,7 +7,6 @@ use serde_derive::{Deserialize, Serialize};
 
 pub struct DefaultCipherSuite;
 
-use crate::server::auth::ServerSetup;
 use opaque_ke::CipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
@@ -33,7 +32,7 @@ pub fn register_user(
     username: impl Into<String>,
     password: impl Into<String>,
 ) -> Result<crate::server::auth::ServerRegistration, ProtocolError> {
-    let mut client = Client::new(password);
+    let client = Client::new(password);
     let (client_reg, regreq) = client.start_registration()?;
     let response = server.start_registration(regreq, username)?;
     let upload = client.finish_registration(client_reg, response)?;

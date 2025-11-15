@@ -4,7 +4,6 @@ use opaque_ke::{
     ClientRegistrationFinishParameters, CredentialFinalization, CredentialRequest,
     CredentialResponse, RegistrationRequest, RegistrationUpload,
 };
-use uuid::Uuid;
 
 use crate::auth::DefaultCipherSuite;
 use serde_derive::{Deserialize, Serialize};

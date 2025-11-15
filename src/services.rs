@@ -1,7 +1,6 @@
 use crate::api::APIClient;
 use crate::auth::LoginResult;
 use crate::livekit::TokenResponse;
-use crate::server::auth::LoginResponse;
 use keycast::discovery::{Beacon, Discovery, ServiceIdent, WaitFor};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

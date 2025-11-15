@@ -6,8 +6,8 @@ use serde_json;
 
 use tokio::runtime::Runtime;
 
-use crate::services::{LoginRequest, VerdantCmd, VerdantService, VerdantUiCmd};
-use keycast::discovery::Discovery; // for type references in comments // adjust paths if needed
+use crate::services::{VerdantService, VerdantUiCmd};
+ // for type references in comments // adjust paths if needed
 
 /// Opaque C handle
 #[repr(C)]

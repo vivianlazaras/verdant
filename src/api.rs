@@ -4,13 +4,9 @@ use crate::auth::LoginResult;
 use crate::auth::challenge::LoginUpload;
 use crate::errors::Error;
 use crate::server::auth::LoginResponse;
-use aes_gcm::{
-    Aes256Gcm,
-    aead::{Aead, KeyInit, generic_array::GenericArray},
-};
+use aes_gcm::aead::KeyInit;
 use reqwest;
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::auth::challenge::LoginCompletion;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
